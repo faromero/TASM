@@ -2,6 +2,7 @@
 
 #include <cassert>
 #include <iostream>
+#include <chrono>
 
 #define ASSERT_SQLITE_OK(i) (assert(i == SQLITE_OK))
 #define ASSERT_SQLITE_DONE(i) (assert(i == SQLITE_DONE))
@@ -21,6 +22,8 @@ void SemanticIndexSQLite::openDatabase(const std::experimental::filesystem::path
 
 
 void SemanticIndexSQLite::createTable() {
+    auto start = std::chrono::high_resolution_clock::now();
+
     const char *createTable = "CREATE TABLE labels (" \
                                 "video text not null, " \
                                 "label text not null, " \
@@ -46,6 +49,12 @@ void SemanticIndexSQLite::createTable() {
         std::cerr << "Error creating index" << std::endl;
         sqlite3_free(error);
     }
+
+    auto end = std::chrono::high_resolution_clock::now();
+
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>( end - start ).count();
+
+    std::cout << "Create table time(ms): " << duration << std::endl;
 }
 
 void SemanticIndexSQLite::closeDatabase() {
@@ -84,16 +93,26 @@ void SemanticIndexSQLite::addMetadata(
 }
 
 void SemanticIndexSQLiteBase::addBulkMetadata(const std::vector<MetadataInfo> &metadataInfo) {
+    auto start = std::chrono::high_resolution_clock::now();
+
     sqlite3_exec(db_, "BEGIN TRANSACTION;", NULL, NULL, NULL);
     for (const auto &m : metadataInfo)
         addMetadata(m.video, m.label, m.frame, m.x1, m.y1, m.x2, m.y2);
     sqlite3_exec(db_, "END TRANSACTION;", NULL, NULL, NULL);
+
+    auto end = std::chrono::high_resolution_clock::now();
+
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>( end - start ).count();
+
+    std::cout << "addBulkMetadata time(ms): " << duration << std::endl;
 }
 
 std::unique_ptr<std::vector<int>> SemanticIndexSQLite::orderedFramesForSelection(
         const std::string &video,
         std::shared_ptr<MetadataSelection> metadataSelection,
         std::shared_ptr<TemporalSelection> temporalSelection) {
+    auto start = std::chrono::high_resolution_clock::now();
+
     std::string query = "SELECT DISTINCT frame FROM labels WHERE video = ? AND " + metadataSelection->labelConstraints();
     if (temporalSelection)
         query += " AND " + temporalSelection->frameConstraints();
@@ -112,6 +131,12 @@ std::unique_ptr<std::vector<int>> SemanticIndexSQLite::orderedFramesForSelection
 
     assert(result == SQLITE_DONE);
     ASSERT_SQLITE_OK(sqlite3_finalize(select));
+
+    auto end = std::chrono::high_resolution_clock::now();
+
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>( end - start ).count();
+
+    std::cout << "orderedFramesForSelection time(ms): " << duration << std::endl;
 
     return frames;
 }
@@ -138,6 +163,7 @@ std::unique_ptr<std::list<Rectangle>> SemanticIndexSQLite::rectanglesForFrames(c
 }
 
 std::unique_ptr<std::list<Rectangle>> SemanticIndexSQLite::rectanglesForQuery(sqlite3_stmt *select, unsigned int maxWidth, unsigned int maxHeight) {
+    auto start = std::chrono::high_resolution_clock::now();
     auto rectangles = std::make_unique<std::list<Rectangle>>();
     int result;
     while ((result = sqlite3_step(select)) == SQLITE_ROW) {
@@ -158,6 +184,12 @@ std::unique_ptr<std::list<Rectangle>> SemanticIndexSQLite::rectanglesForQuery(sq
 
     ASSERT_SQLITE_DONE(result);
     ASSERT_SQLITE_OK(sqlite3_finalize(select));
+
+    auto end = std::chrono::high_resolution_clock::now();
+
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>( end - start ).count();
+
+    std::cout << "rectanglesForQuery time(ms): " << duration << std::endl;
 
     return rectangles;
 }
@@ -266,6 +298,8 @@ std::unique_ptr<std::list<Rectangle>> SemanticIndexWH::rectanglesForFrames(const
 }
 
 std::unique_ptr<std::list<Rectangle>> SemanticIndexWH::rectanglesForQuery(sqlite3_stmt *select, unsigned int maxWidth, unsigned int maxHeight) {
+    auto start = std::chrono::high_resolution_clock::now();
+
     auto rectangles = std::make_unique<std::list<Rectangle>>();
     int result;
     while ((result = sqlite3_step(select)) == SQLITE_ROW) {
@@ -280,6 +314,12 @@ std::unique_ptr<std::list<Rectangle>> SemanticIndexWH::rectanglesForQuery(sqlite
 
     ASSERT_SQLITE_DONE(result);
     ASSERT_SQLITE_OK(sqlite3_finalize(select));
+
+    auto end = std::chrono::high_resolution_clock::now();
+
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>( end - start ).count();
+
+    std::cout << "SemanticIndexWH rectanglesForQuery time(ms): " << duration << std::endl;
 
     return rectangles;
 }

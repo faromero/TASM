@@ -9,6 +9,8 @@ std::vector<unsigned int> FineGrainedTileConfigurationProvider::tileDimensions(c
     std::vector<int> intervalEnds;
     int lastOffset = 0;
 
+    auto start = std::chrono::high_resolution_clock::now();
+
     auto doesOffsetStrictlyIntersect = [&](int proposedOffset, unsigned int intervalIndex) {
         for (auto i = 0u; i < sortedIntervals.size(); ++i) {
             if (i == intervalIndex)
@@ -90,6 +92,12 @@ std::vector<unsigned int> FineGrainedTileConfigurationProvider::tileDimensions(c
     }
     assert(totalDimension > offsets.back());
     dimensions.back() = totalDimension - offsets.back();
+
+    auto end = std::chrono::high_resolution_clock::now();
+
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>( end - start ).count();
+
+    std::cout << "tileDimensions time(ms): " << duration << std::endl;
 
     return dimensions;
 }

@@ -2,6 +2,9 @@
 
 #include "SemanticDataManager.h"
 
+#include <iostream>
+#include <chrono>
+
 namespace tasm {
 
 
@@ -11,6 +14,8 @@ std::ostream &operator<<(std::ostream &ostr, const CostElements &c) {
 }
 
 CostElements WorkloadCostEstimator::estimateCostForQuery(unsigned int queryNum, std::unordered_map<unsigned int, CostElements> *costByGOP) {
+    auto start_time = std::chrono::high_resolution_clock::now();
+
     auto semanticDataManager = workload_->semanticDataManagerForQuery(queryNum);
     auto start = semanticDataManager->orderedFrames().begin();
     auto end = semanticDataManager->orderedFrames().end();
@@ -28,6 +33,13 @@ CostElements WorkloadCostEstimator::estimateCostForQuery(unsigned int queryNum, 
     }
 
     auto multiplier = workload_->numberOfTimesQueryIsExecuted(queryNum);
+
+    auto end_time = std::chrono::high_resolution_clock::now();
+
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>( end_time - start_time ).count();
+
+    std::cout << "estimateCostForQuery time(ms): " << duration << std::endl;
+
     return CostElements(multiplier * totalNumberOfPixels, multiplier * totalNumberOfTiles);
 }
 
@@ -43,6 +55,8 @@ CostElements WorkloadCostEstimator::estimateCostForWorkload() {
 std::pair<int, CostElements> WorkloadCostEstimator::estimateCostForNextGOP(std::vector<int>::const_iterator &currentFrame,
                                                                            std::vector<int>::const_iterator end,
                                                                            std::shared_ptr<SemanticDataManager> metadataManager) {
+    auto start = std::chrono::high_resolution_clock::now();
+
     if (currentFrame == end)
         return std::make_pair(-1, CostElements(0, 0));
 
@@ -76,6 +90,13 @@ std::pair<int, CostElements> WorkloadCostEstimator::estimateCostForNextGOP(std::
         totalNumTiles += numTiles;
         totalNumPixels += layoutForGOP->rectangleForTile(i).area() * numTiles;
     }
+
+    auto end_time = std::chrono::high_resolution_clock::now();
+
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>( end_time - start ).count();
+
+    std::cout << "estimateCostForNextGOP time(ms): " << duration << std::endl;
+
     return std::make_pair(gopNum, CostElements(totalNumPixels, totalNumTiles));
 }
 

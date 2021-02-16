@@ -2,6 +2,9 @@
 
 #include <fstream>
 
+#include <iostream>
+#include <chrono>
+
 namespace tasm {
 
 void GetImage(CUdeviceptr dpSrc, uint8_t *pDst, int nWidth, int nHeight, int srcXOffset, int srcYOffset, int srcPitch)
@@ -32,6 +35,8 @@ std::optional<std::unique_ptr<std::vector<ImagePtr>>> TransformToImage::next() {
     }
     assert(objectPixels.has_value());
 
+    auto start = std::chrono::high_resolution_clock::now();
+
     auto images = std::make_unique<std::vector<ImagePtr>>();
 
     for (auto object : **objectPixels) {
@@ -46,6 +51,13 @@ std::optional<std::unique_ptr<std::vector<ImagePtr>>> TransformToImage::next() {
         assert(pImage);
         images->emplace_back(std::make_unique<Image>(width, height, std::move(pImage)));
     }
+
+    auto end = std::chrono::high_resolution_clock::now();
+
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>( end - start ).count();
+
+    std::cout << "TransformToImage next time(ms): " << duration << std::endl;
+
     return images;
 }
 

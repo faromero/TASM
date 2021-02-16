@@ -3,6 +3,9 @@
 #include "EncodeAPI.h"
 #include "Transaction.h"
 
+#include <iostream>
+#include <chrono>
+
 namespace tasm {
 
 std::optional<GPUDecodedFrameData> TileOperator::next() {
@@ -13,6 +16,8 @@ std::optional<GPUDecodedFrameData> TileOperator::next() {
         isComplete_ = true;
         return {};
     }
+
+    auto start = std::chrono::high_resolution_clock::now();
 
     for (auto frame : decodedData->frames()) {
         int frameNumber = -1;
@@ -42,21 +47,37 @@ std::optional<GPUDecodedFrameData> TileOperator::next() {
         encodeFrameToTiles(frame, frameNumber);
     }
 
+    auto end = std::chrono::high_resolution_clock::now();
+
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>( end - start ).count();
+
+    std::cout << "TileOperator next time(ms): " << duration << std::endl;
+
     return decodedData;
 }
 
 void TileOperator::reconfigureEncodersForNewLayout(std::shared_ptr<const tasm::TileLayout> newLayout) {
+    auto start = std::chrono::high_resolution_clock::now();
+
     for (auto tileIndex = 0u; tileIndex < newLayout->numberOfTiles(); ++tileIndex) {
         Rectangle rect = newLayout->rectangleForTile(tileIndex);
         tileEncodersManager_.createEncoderWithConfiguration(tileIndex, rect.width, rect.height);
         tilesCurrentlyBeingEncoded_.push_back(tileIndex);
     }
+
+    auto end = std::chrono::high_resolution_clock::now();
+
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>( end - start ).count();
+
+    std::cout << "reconfigureEncodersForNewLayout time(ms): " << duration << std::endl;
 }
 
 void TileOperator::saveTileGroupsToDisk() {
     if (!currentTileLayout_ || *currentTileLayout_ == EmptyTileLayout) {
         return;
     }
+
+    auto start = std::chrono::high_resolution_clock::now();
 
     assert(tilesCurrentlyBeingEncoded_.size());
     TileCrackingTransaction transaction(outputEntry_,
@@ -77,6 +98,13 @@ void TileOperator::saveTileGroupsToDisk() {
     }
 
     transaction.commit();
+
+
+    auto end = std::chrono::high_resolution_clock::now();
+
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>( end - start ).count();
+
+    std::cout << "saveTileGroupsToDisk time(ms): " << duration << std::endl;
 }
 
 void TileOperator::readDataFromEncoders(bool shouldFlush) {

@@ -17,6 +17,9 @@
 #include "VideoConfiguration.h"
 #include "WorkloadCostEstimator.h"
 
+#include <iostream>
+#include <chrono>
+
 
 namespace tasm {
 
@@ -26,17 +29,33 @@ void VideoManager::createCatalogIfNecessary() {
 }
 
 void VideoManager::store(const std::experimental::filesystem::path &path, const std::string &name) {
+    auto start = std::chrono::high_resolution_clock::now();
+
     std::shared_ptr<Video> video(new Video(path));
     auto tileConfigurationProvider = std::make_shared<SingleTileConfigurationProvider>(
             video->configuration().displayWidth,
             video->configuration().displayHeight);
     storeTiledVideo(video, tileConfigurationProvider, name);
+
+    auto end = std::chrono::high_resolution_clock::now();
+
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>( end - start ).count();
+
+    std::cout << "VideoManager store time(ms): " << duration << std::endl;
 }
 
 void VideoManager::storeWithUniformLayout(const std::experimental::filesystem::path &path, const std::string &name, unsigned int numRows, unsigned int numColumns) {
+    auto start = std::chrono::high_resolution_clock::now();
+
     std::shared_ptr<Video> video(new Video(path));
     auto tileConfigurationProvider = std::make_shared<UniformTileconfigurationProvider>(numRows, numColumns, video->configuration());
     storeTiledVideo(video, tileConfigurationProvider, name);
+
+    auto end = std::chrono::high_resolution_clock::now();
+
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>( end - start ).count();
+
+    std::cout << "storeWithUniformLayout time(ms): " << duration << std::endl;
 }
 
 void VideoManager::storeWithNonUniformLayout(const std::experimental::filesystem::path &path,
@@ -44,6 +63,7 @@ void VideoManager::storeWithNonUniformLayout(const std::experimental::filesystem
                                                 const std::string &metadataIdentifier,
                                                 std::shared_ptr<MetadataSelection> metadataSelection,
                                                 std::shared_ptr<SemanticIndex> semanticIndex, bool force) {
+    auto start = std::chrono::high_resolution_clock::now();
     std::shared_ptr<Video> video(new Video(path));
     auto semanticDataManager = std::make_shared<SemanticDataManager>(semanticIndex, metadataIdentifier, metadataSelection, std::shared_ptr<TemporalSelection>());
     std::shared_ptr<TileLayoutProvider> layoutProvider;
@@ -66,9 +86,17 @@ void VideoManager::storeWithNonUniformLayout(const std::experimental::filesystem
                 height);
     }
     storeTiledVideo(video, layoutProvider, storedName);
+
+    auto end = std::chrono::high_resolution_clock::now();
+
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>( end - start ).count();
+
+    std::cout << "storeWithNonUniformLayout time(ms): " << duration << std::endl;
 }
 
 void VideoManager::storeTiledVideo(std::shared_ptr<Video> video, std::shared_ptr<TileLayoutProvider> tileLayoutProvider, const std::string &savedName) {
+    auto start = std::chrono::high_resolution_clock::now();
+
     std::shared_ptr<ScanFileDecodeReader> scan(new ScanFileDecodeReader(video));
     std::shared_ptr<GPUDecodeFromCPU> decode(new GPUDecodeFromCPU(scan, video->configuration(), gpuContext_, lock_));
 
@@ -76,10 +104,18 @@ void VideoManager::storeTiledVideo(std::shared_ptr<Video> video, std::shared_ptr
     while (!tile.isComplete()) {
         tile.next();
     }
+
+    auto end = std::chrono::high_resolution_clock::now();
+
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>( end - start ).count();
+
+    std::cout << "storeTiledVideo time(ms): " << duration << std::endl;
 }
 
 void VideoManager::retileVideoBasedOnRegret(const std::string &videoName) {
     assert(videoToRegretAccumulator_.count(videoName));
+
+    auto start = std::chrono::high_resolution_clock::now();
 
     auto tiledEntry = std::make_shared<TiledEntry>(videoName);
     auto tiledVideoManager = std::make_shared<TiledVideoManager>(tiledEntry);
@@ -97,6 +133,12 @@ void VideoManager::retileVideoBasedOnRegret(const std::string &videoName) {
     std::sort(frames->begin(), frames->end());
 
     retileVideo(video, frames, std::make_shared<ConglomerationTileConfigurationProvider>(std::move(gopToLayouts), gopLength), videoName);
+
+    auto end = std::chrono::high_resolution_clock::now();
+
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>( end - start ).count();
+
+    std::cout << "retileBasedOnRegret time(ms): " << duration << std::endl;
 }
 
 void VideoManager::retileVideo(std::shared_ptr<Video> video, std::shared_ptr<std::vector<int>> framesToRead, std::shared_ptr<TileLayoutProvider> newLayoutProvider, const std::string &savedName) {
@@ -116,6 +158,8 @@ std::unique_ptr<ImageIterator> VideoManager::select(const std::string &video,
                                                     std::shared_ptr<TemporalSelection> temporalSelection,
                                                     std::shared_ptr<SemanticIndex> semanticIndex,
                                                     SelectStrategy selectStrategy) {
+    auto start = std::chrono::high_resolution_clock::now();
+
     std::shared_ptr<TiledEntry> entry(new TiledEntry(video, metadataIdentifier));
 
     // Set up scan of a tiled video.
@@ -178,6 +222,12 @@ std::unique_ptr<ImageIterator> VideoManager::select(const std::string &video,
         accumulateRegret(video, semanticDataManager, tileLocationProvider);
 
     return std::make_unique<ImageIterator>(transform);
+
+    auto end = std::chrono::high_resolution_clock::now();
+
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>( end - start ).count();
+
+    std::cout << "VideoManager select time(ms): " << duration << std::endl;
 }
 
 void VideoManager::accumulateRegret(const std::string &video, std::shared_ptr<SemanticDataManager> selection, std::shared_ptr<TileLayoutProvider> currentLayout) {

@@ -2,6 +2,7 @@
 
 #include "SemanticDataManager.h"
 #include <iostream>
+#include <chrono>
 
 namespace tasm {
 
@@ -144,6 +145,8 @@ bool RegretAccumulator::costsAreForGOPsThatHaveNotBeenRetiled(unsigned int itera
 void RegretAccumulator::addRegretForWorkload(unsigned int iteration, std::shared_ptr<Workload> workload,
                                              std::shared_ptr<std::unordered_map<unsigned int, CostElements>> baselineCosts,
                                              const std::vector<std::string> layouts) {
+    auto start = std::chrono::high_resolution_clock::now();
+
     static const double pixelCostWeight = 1.608e-06;
     static const double tileCostWeight = 1.703e-01;
 
@@ -174,6 +177,12 @@ void RegretAccumulator::addRegretForWorkload(unsigned int iteration, std::shared
             addRegretToGOP(gop, regret, layoutId);
         }
     }
+
+    auto end = std::chrono::high_resolution_clock::now();
+
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>( end - start ).count();
+
+    std::cout << "addRegretForWorkload time(ms): " << duration << std::endl;
 }
 
 void RegretAccumulator::addRegretToGOP(unsigned int gop, double regret, const std::string &layoutIdentifier) {

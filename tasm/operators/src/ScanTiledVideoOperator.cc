@@ -3,12 +3,17 @@
 #include "VideoConfiguration.h"
 #include "Stitcher.h"
 
+#include <iostream>
+#include <chrono>
+
 namespace tasm {
 
 static const unsigned int MAX_PPS_ID = 64;
 static const unsigned int ALIGNMENT = 32;
 
 void ScanTiledVideoOperator::preprocess() {
+    auto start = std::chrono::high_resolution_clock::now();
+
     auto frameIt = semanticDataManager_->orderedFrames().cbegin();
     auto end = semanticDataManager_->orderedFrames().cend();
     while (frameIt != end) {
@@ -32,10 +37,19 @@ void ScanTiledVideoOperator::preprocess() {
 
     std::sort(orderedTileInformation_.begin(), orderedTileInformation_.end());
     orderedTileInformationIt_ = orderedTileInformation_.begin();
+
+
+    auto end_time = std::chrono::high_resolution_clock::now();
+
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>( end_time - start ).count();
+
+    std::cout << "Preprocess tile time(ms): " << duration << std::endl;
 }
 
 std::shared_ptr<std::vector<int>> ScanTiledVideoOperator::nextGroupOfFramesWithTheSameLayoutAndFromTheSameFile(std::vector<int>::const_iterator &frameIt, std::vector<int>::const_iterator &endIt) {
     assert(frameIt != endIt);
+
+    auto start = std::chrono::high_resolution_clock::now();
 
     auto fakeTileNumber = 0;
     // Get the configuration and location for the next frame.
@@ -58,10 +72,18 @@ std::shared_ptr<std::vector<int>> ScanTiledVideoOperator::nextGroupOfFramesWithT
             break;
     }
 
+    auto end = std::chrono::high_resolution_clock::now();
+
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>( end - start ).count();
+
+    std::cout << "nextGroupOfFramesWithTheSameLayoutAndFromTheSameFile time(ms): " << duration << std::endl;
+
     return framesWithSamePathAndConfiguration;
 }
 
 std::unique_ptr<std::unordered_map<unsigned int, std::shared_ptr<std::vector<int>>>> ScanTiledVideoOperator::filterToTileFramesThatContainObject(std::shared_ptr<std::vector<int>> possibleFrames) {
+    auto start = std::chrono::high_resolution_clock::now();
+
     auto tileNumberToFrames = std::make_unique<std::unordered_map<unsigned int, std::shared_ptr<std::vector<int>>>>();
 
     // currentTileLayout is set in nextGroupOfFramesWithTheSameLayoutAndFromTheSameFile().
@@ -85,6 +107,13 @@ std::unique_ptr<std::unordered_map<unsigned int, std::shared_ptr<std::vector<int
             }
         }
     }
+
+    auto end = std::chrono::high_resolution_clock::now();
+
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>( end - start ).count();
+
+    std::cout << "filterToTileFramesThatContainObjects time(ms): " << duration << std::endl;
+
     return tileNumberToFrames;
 }
 
@@ -119,6 +148,8 @@ std::optional<CPUEncodedFrameDataPtr> ScanTiledVideoOperator::next() {
         isComplete_ = true;
         return {};
     }
+
+    auto start = std::chrono::high_resolution_clock::now();
 
     if (!currentEncodedFrameReader_ || currentEncodedFrameReader_->isEos()) {
         setUpNextEncodedFrameReader();
@@ -158,6 +189,12 @@ std::optional<CPUEncodedFrameDataPtr> ScanTiledVideoOperator::next() {
     data->setFirstFrameIndexAndNumberOfFrames(gopPacket->firstFrameIndex(), gopPacket->numberOfFrames());
     data->setTileNumber(currentTileNumber_);
 
+    auto end = std::chrono::high_resolution_clock::now();
+
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>( end - start ).count();
+
+    std::cout << "ScanTiledVideoOperator next time(ms): " << duration << std::endl;
+
     return {data};
 }
 
@@ -171,6 +208,8 @@ void ScanFullFramesFromTiledVideoOperator::setUpNextEncodedFrameReaders() {
     currentEncodedFrameReaders_.clear();
     if (frameIt_ == endFrameIt_)
         return;
+
+    auto start = std::chrono::high_resolution_clock::now();
 
     // Get the group of frames with the same layout.
     auto frames = std::make_shared<std::vector<int>>();
@@ -207,9 +246,17 @@ void ScanFullFramesFromTiledVideoOperator::setUpNextEncodedFrameReaders() {
                                 ppsId_++);
     if (ppsId_ >= MAX_PPS_ID)
         ppsId_ = 1;
+
+    auto end = std::chrono::high_resolution_clock::now();
+
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>( end - start ).count();
+
+    std::cout << "setUpNextEncodedFrameReaders time(ms): " << duration << std::endl;
 }
 
 GOPReaderPacket ScanFullFramesFromTiledVideoOperator::stitchedDataForNextGOP() {
+    auto start = std::chrono::high_resolution_clock::now();
+
     // Load the data for each tile.
     std::vector<std::shared_ptr<std::vector<char>>> dataForGOP;
     int numberOfFrames = -1;
@@ -237,7 +284,15 @@ GOPReaderPacket ScanFullFramesFromTiledVideoOperator::stitchedDataForNextGOP() {
 
     // Stitch the data for the different GOPs.
     stitching::Stitcher stitcher(*currentContext_, dataForGOP);
-    return GOPReaderPacket(stitcher.GetStitchedSegments(), firstFrameIndex, numberOfFrames);
+    GOPReaderPacket nextGOPReaderPacket = GOPReaderPacket(stitcher.GetStitchedSegments(), firstFrameIndex, numberOfFrames);
+
+    auto end = std::chrono::high_resolution_clock::now();
+
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>( end - start ).count();
+
+    std::cout << "stitchedDataForNextGOP time(ms): " << duration << std::endl;
+
+    return nextGOPReaderPacket;
 }
 
 std::optional<CPUEncodedFrameDataPtr> ScanFullFramesFromTiledVideoOperator::next() {
@@ -248,6 +303,8 @@ std::optional<CPUEncodedFrameDataPtr> ScanFullFramesFromTiledVideoOperator::next
         isComplete_ = true;
         return {};
     }
+
+    auto start = std::chrono::high_resolution_clock::now();
 
     // Set up frame readers for next group of frames with the same layout.
     if (currentEncodedFrameReaders_.empty()) {
@@ -274,6 +331,12 @@ std::optional<CPUEncodedFrameDataPtr> ScanFullFramesFromTiledVideoOperator::next
     data->setFirstFrameIndexAndNumberOfFrames(packet.firstFrameIndex(), packet.numberOfFrames());
     // Hardcode tile number 0 because we're simulating a 1x1 tile layout.
     data->setTileNumber(0);
+
+    auto end = std::chrono::high_resolution_clock::now();
+
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>( end - start ).count();
+
+    std::cout << "ScanFullFramesFromTiledVideoOperator next time(ms): " << duration << std::endl;
 
     return {data};
 }

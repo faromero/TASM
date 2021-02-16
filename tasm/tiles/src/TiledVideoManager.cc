@@ -3,9 +3,13 @@
 #include "Files.h"
 #include "Gpac.h"
 
+#include <iostream>
+#include <chrono>
+
 namespace tasm {
 
 void TiledVideoManager::loadAllTileConfigurations() {
+    auto start = std::chrono::high_resolution_clock::now();
     std::scoped_lock lock(mutex_);
 
     // Get directory path from entry_.
@@ -56,6 +60,12 @@ void TiledVideoManager::loadAllTileConfigurations() {
     }
 
     intervalTree_ = IntervalTree<unsigned int>(lowerBound, upperBound, directoryIntervals);
+
+    auto end = std::chrono::high_resolution_clock::now();
+
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>( end - start ).count();
+
+    std::cout << "loadAllTileConfigurations time(ms): " << duration << std::endl;
 }
 
 std::vector<int> TiledVideoManager::tileLayoutIdsForFrame(unsigned int frameNumber) const {

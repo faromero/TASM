@@ -5,6 +5,9 @@
 #include "SemanticDataManager.h"
 #include "TileConfigurationProvider.h"
 
+#include <iostream>
+#include <chrono>
+
 namespace tasm {
 
 static std::pair<int, int> topAndLeftOffsets(const Rectangle &rect, const Rectangle &baseRect) {
@@ -20,6 +23,9 @@ std::optional<GPUDecodedFrameData> TransformToRGB::next() {
         isComplete_ = true;
         return std::nullopt;
     }
+
+    auto start = std::chrono::high_resolution_clock::now();
+
     assert(decodedData.has_value());
     auto frames = std::make_unique<std::vector<GPUFramePtr>>();
     for (auto &frame : decodedData->frames()) {
@@ -29,6 +35,12 @@ std::optional<GPUDecodedFrameData> TransformToRGB::next() {
         Nv12ToColor32<RGBA32>((uint8_t *)frame->cuda()->handle(), frame->cuda()->pitch(), (uint8_t *)rgbHandle, rgbPitch, frame->width(), frame->height());
         frames->push_back(std::make_shared<DecodedFrame>(*frame, rgbHandle, rgbPitch, true));
     }
+
+    auto end = std::chrono::high_resolution_clock::now();
+
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>( end - start ).count();
+
+    std::cout << "TransformToRGB next time(ms): " << duration << std::endl;
 
     return std::make_optional<GPUDecodedFrameData>(decodedData->configuration(), std::move(frames));
 }
@@ -42,6 +54,8 @@ std::optional<GPUPixelDataContainer> MergeTilesOperator::next() {
     }
 
     assert(decodedData.has_value());
+
+    auto start = std::chrono::high_resolution_clock::now();
 
     auto pixelData = std::make_unique<std::vector<GPUPixelDataPtr>>();
     for (auto frame : decodedData->frames()) {
@@ -73,6 +87,13 @@ std::optional<GPUPixelDataContainer> MergeTilesOperator::next() {
 
         }
     }
+
+    auto end = std::chrono::high_resolution_clock::now();
+
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>( end - start ).count();
+
+    std::cout << "MergeTilesOperator next time(ms): " << duration << std::endl;
+
     return pixelData;
 }
 
@@ -84,6 +105,8 @@ std::optional<GPUPixelDataContainer> TilesToPixelsOperator::next() {
         return std::nullopt;
     }
 
+    auto start = std::chrono::high_resolution_clock::now();
+
     assert(decodedData.has_value());
 
     auto pixelData = std::make_unique<std::vector<GPUPixelDataPtr>>();
@@ -93,6 +116,13 @@ std::optional<GPUPixelDataContainer> TilesToPixelsOperator::next() {
                 frame->width(), frame->height(),
                 0, 0)); // Fake a (0, 0) offset.
     }
+
+    auto end = std::chrono::high_resolution_clock::now();
+
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>( end - start ).count();
+
+    std::cout << "TilesToPixelsOperator next time(ms): " << duration << std::endl;
+
     return pixelData;
 }
 
