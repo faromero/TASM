@@ -17,6 +17,7 @@
 import os
 import shutil
 import tasm
+import sys
 
 NOTEBOOK_RESOURCES_PATH = 'basics_resources'
 if os.path.exists(NOTEBOOK_RESOURCES_PATH):
@@ -25,21 +26,18 @@ os.mkdir(NOTEBOOK_RESOURCES_PATH)
 
 tasm.configure_environment({
     'default_db_path': os.path.join(NOTEBOOK_RESOURCES_PATH, 'labels.db'),
-    'catalog_path': os.path.join(NOTEBOOK_RESOURCES_PATH, 'resources') 
+    'catalog_path': os.path.join(NOTEBOOK_RESOURCES_PATH, 'resources'),
 })
-
 
 VIDEO_PATH = 'data/birds.mp4'
 DETECTIONS_PATH = 'data/birds.pkl'
 
-
 # ### Load detections.
-
 import pandas as pd
 
 detections = pd.read_pickle(DETECTIONS_PATH)
 detections = detections.astype({'x1': int, 'y1': int, 'x2': int, 'y2': int})
-detections.head()
+print(detections.head())
 
 import cv2
 import os
@@ -50,14 +48,14 @@ import tasm
 t = tasm.TASM()
 
 # First, load the video without tiling into TASM.
-print('== Storing video without tiling ==')
+print('== Storing video without tiling ==', flush=True)
 untiled_video_name = 'birds-untiled'
 t.store(VIDEO_PATH, untiled_video_name)
 
 # We can also store it with a uniform layout, e.g. 2x2.
 rows = 2
 cols = 2
-print('== Storing video in a uniform layout ==')
+print('== Storing video in a uniform layout ==', flush=True)
 t.store_with_uniform_layout(VIDEO_PATH, 'birds-2x2', rows, cols)
 
 # Add metadata about the video. 
@@ -65,17 +63,21 @@ t.store_with_uniform_layout(VIDEO_PATH, 'birds-2x2', rows, cols)
 # However, since we have all of the metadata available, we can use t.add_bulk_metadata to add all of it at once.
 metadata_id = 'birds'
 label = 'bird'
-metadata_info = [
-    tasm.MetadataInfo(metadata_id, r.label, r.frame, r.x1, r.y1, r.x2, r.y2) 
-    for _, r in detections.iterrows()
-]
-print('== Adding metadata about this video ==')
+metadata_info = []
+for _, r in detections.iterrows():
+    if r.x1 < 0 or r.y1 < 0 or r.x2 < 0 or r.y2 < 0:
+        print('Ignoring:', r)
+        continue
+    md = tasm.MetadataInfo(metadata_id, r.label, r.frame, r.x1, r.y1, r.x2, r.y2)
+    metadata_info.append(md)
+
+print('== Adding metadata about this video ==', flush=True)
 t.add_bulk_metadata(metadata_info)
 
 
 # Now, we can use the metadata to tile around birds.
 tiled_video_name = 'birds-birds'
-print('== Storing video with nonuniform layout ==')
+print('== Storing video with nonuniform layout ==', flush=True)
 t.store_with_nonuniform_layout(VIDEO_PATH, tiled_video_name, metadata_id, label)
 
 # # Retrieving objects of interest using TASM.
@@ -87,23 +89,17 @@ t.store_with_nonuniform_layout(VIDEO_PATH, tiled_video_name, metadata_id, label)
 # First, let's retrieve a few birds from the un-tiled video.
 first_frame_inclusive = 0
 last_frame_exclusive = 5
-print('== Retrieving frames using TASM ==')
+print('== Retrieving frames using TASM ==', flush=True)
 tiled_selection = t.select(tiled_video_name, metadata_id, label, first_frame_inclusive, last_frame_exclusive)
 
 # Inspect the returned instances.
 num_birds = 0
-#num_cols = 5
-#f, axs = plt.subplots(1, num_cols)
-#[ax.axis('off') for ax in axs.ravel()]
 while True:
     bird = tiled_selection.next()
     if bird.is_empty():
         break
-    #w = bird.width()
-    #h = bird.height()
-    #axs[num_birds].imshow(bird.numpy_array())
     num_birds += 1
-print(f'Detected {num_birds} birds.')
+print(f'Detected {num_birds} birds.', flush=True)
 
 
 import time
@@ -120,79 +116,62 @@ def time_selection(video_name, metadata_id, label, first_frame=None, last_frame=
     end = time.perf_counter()
     return end - start, num_objs
 
-
 # Compare the time to retrieve all of the birds from the untiled video from the tiled video.
 # By not specifying first frame and last frame, TASM selects all instances of the object from the video.
-print('== Timing how long it takes to retrieve from untiled versus tiled ==')
+print('== Timing how long it takes to retrieve from untiled version ==', flush=True)
 dur, num_birds = time_selection(untiled_video_name, metadata_id, label)
-print(f'Untiled video: Retrieved {num_birds} birds in {dur}')
+print(f'Untiled video: Retrieved {num_birds} birds in {dur}', flush=True)
 
+print('== Timing how long it takes to retrieve from tiled version ==', flush=True)
 dur, num_birds = time_selection(tiled_video_name, metadata_id, label)
-print(f'Tiled video: Retrieved {num_birds} birds in {dur}')
-
+print(f'Tiled video: Retrieved {num_birds} birds in {dur}', flush=True)
 
 # # Retrieving full frames and full tiles from videos
 
 # ## Retrieve entire tiles containing objects of interest.
 # Use the `select_tiles` function.
-print('== Retrieving entire tiles containing objects of interest ==')
+print('== Retrieving entire tiles containing objects of interest ==', flush=True)
 tiled_selection = t.select_tiles(tiled_video_name, metadata_id, label, first_frame_inclusive, last_frame_exclusive)
 num_tiles = 0
-#num_cols = 5
-#f, axs = plt.subplots(1, num_cols, figsize=(15, 15))
-#[ax.axis('off') for ax in axs.ravel()]
 while True:
     tile = tiled_selection.next()
     if tile.is_empty():
         break
-    #axs[num_tiles].imshow(tile.numpy_array())
     num_tiles += 1
-print(f'Decoded {num_tiles} tiles')
+print(f'Decoded {num_tiles} tiles', flush=True)
 
 
 # ## Retrieve entire frames containing objects of interest.
 # Use the `select_frames` function with any tiled or untiled video.
-print('== Retrieving entire frames containing objects of interest from tiled video ==')
+print('== Retrieving entire frames containing objects of interest from tiled video ==', flush=True)
 frame_selection = t.select_frames(tiled_video_name, metadata_id, label, first_frame_inclusive, last_frame_exclusive)
 num_frames = 0
-#num_cols = 5
-#f, axs = plt.subplots(1, num_cols, figsize=(15, 15))
-#[ax.axis('off') for ax in axs.ravel()]
 while True:
     frame = frame_selection.next()
     if frame.is_empty():
         break
-    #axs[num_frames].imshow(frame.numpy_array())
     num_frames += 1
-print(f'Decoded {num_frames} frames')
+print(f'Decoded {num_frames} frames', flush=True)
 
-print('== Retrieving entire frames containing objects of interest from untiled video ==')
+print('== Retrieving entire frames containing objects of interest from untiled video ==', flush=True)
 frame_selection = t.select_frames(untiled_video_name, metadata_id, label, first_frame_inclusive, last_frame_exclusive)
 num_frames = 0
-#num_cols = 5
-#f, axs = plt.subplots(1, num_cols, figsize=(15, 15))
-#[ax.axis('off') for ax in axs.ravel()]
 while True:
     frame = frame_selection.next()
     if frame.is_empty():
         break
-    #axs[num_frames].imshow(frame.numpy_array())
     num_frames += 1
-print(f'Decoded {num_frames} frames')
+print(f'Decoded {num_frames} frames', flush=True)
 
-print('== Retrieving entire frames containing objects of interest from 2x2 ==')
+print('== Retrieving entire frames containing objects of interest from 2x2 ==', flush=True)
 frame_selection = t.select_frames('birds-2x2', metadata_id, label, first_frame_inclusive, last_frame_exclusive)
 num_frames = 0
-#num_cols = 5
-#f, axs = plt.subplots(1, num_cols, figsize=(15, 15))
-#[ax.axis('off') for ax in axs.ravel()]
 while True:
     frame = frame_selection.next()
     if frame.is_empty():
         break
-    #axs[num_frames].imshow(frame.numpy_array())
     num_frames += 1
-print(f'Decoded {num_frames} frames')
+print(f'Decoded {num_frames} frames', flush=True)
 
 
 # # Automatically tiling a video.
@@ -200,7 +179,7 @@ print(f'Decoded {num_frames} frames')
 # Start with an untiled video.
 t = tasm.TASM()
 incrementally_tiled_name = 'birds-incremental'
-print('== Storing video for incremental tiling ==')
+print('== Storing video for incremental tiling ==', flush=True)
 t.store(VIDEO_PATH, incrementally_tiled_name)
 
 
@@ -208,11 +187,11 @@ t.store(VIDEO_PATH, incrementally_tiled_name)
 first_frame_inclusive = 0
 last_frame_exclusive = 150
 num_selections = 10
-print('== Selections on untiled video over the first 5 seconds ==')
+print('== Selections on untiled video over the first 5 seconds ==', flush=True)
 start = time.perf_counter()
 for i in range(num_selections):
     time_selection(incrementally_tiled_name, metadata_id, label, first_frame_inclusive, last_frame_exclusive)
-print(f'{num_selections} selections over the untiled video took {time.perf_counter() - start}')
+print(f'{num_selections} selections over the untiled video took {time.perf_counter() - start}', flush=True)
 
 
 # To automatically tile a video, we must first activate it so TASM will start tracking regret.
@@ -222,10 +201,10 @@ t.activate_regret_based_tiling(incrementally_tiled_name, metadata_id)
 # Perform 0 selections with incremental tiling over the first 5 seconds.
 # Currently, the call to re-tile must be manually specified.
 # Moving this into the selection calls is tracked at https://github.com/maureendaum/TASM/issues/5.
-print('== Selections on incrementally tiled video over the first 5 seconds ==')
+print('== Selections on incrementally tiled video over the first 5 seconds ==', flush=True)
 start = time.perf_counter()
 for i in range(num_selections):
     time_selection(incrementally_tiled_name, metadata_id, label, first_frame_inclusive, last_frame_exclusive)
     t.retile_based_on_regret(incrementally_tiled_name)
-print(f'{num_selections} selections with incremental tiling took {time.perf_counter() - start}')
+print(f'{num_selections} selections with incremental tiling took {time.perf_counter() - start}', flush=True)
 

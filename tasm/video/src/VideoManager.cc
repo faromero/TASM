@@ -132,13 +132,19 @@ void VideoManager::retileVideoBasedOnRegret(const std::string &videoName) {
     // That should probably get more flexible, but for now sorting is easy.
     std::sort(frames->begin(), frames->end());
 
+    auto start_inner = std::chrono::high_resolution_clock::now();
     retileVideo(video, frames, std::make_shared<ConglomerationTileConfigurationProvider>(std::move(gopToLayouts), gopLength), videoName);
+    auto end_inner = std::chrono::high_resolution_clock::now();
+
+    auto duration_inner = std::chrono::duration_cast<std::chrono::milliseconds>( end_inner - start_inner ).count();
+
+    std::cout << "retileBasedOnRegret inner time(ms): " << duration_inner << std::endl;
 
     auto end = std::chrono::high_resolution_clock::now();
 
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>( end - start ).count();
 
-    std::cout << "retileBasedOnRegret time(ms): " << duration << std::endl;
+    std::cout << "retileBasedOnRegret total time(ms): " << duration << std::endl;
 }
 
 void VideoManager::retileVideo(std::shared_ptr<Video> video, std::shared_ptr<std::vector<int>> framesToRead, std::shared_ptr<TileLayoutProvider> newLayoutProvider, const std::string &savedName) {
